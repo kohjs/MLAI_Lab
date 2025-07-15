@@ -20,7 +20,7 @@ def import_and_predict(image_data, model):
     return prediction
 
 # Load model
-model = tf.keras.models.load_model('C:/Python/rps/my_model.hdf5')
+model = tf.keras.models.load_model('C:/MLAI/MLAI_Lab/my_model.hdf5')
 
 # Start webcam
 cap = cv2.VideoCapture(0)
