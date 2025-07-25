@@ -1,55 +1,67 @@
+from flask import Flask, render_template, Response
+import cv2
 import numpy as np
-import streamlit as st
 import tensorflow as tf
-from tensorflow.keras.applications import InceptionV3
-from PIL import Image, ImageOps
+from PIL import Image
+import os
 
-# Function to process and predict image
-def import_and_predict(image_data, model):
-    size = (75, 75)  # set the image size
-    image = ImageOps.fit(image_data, size, Image.Resampling.LANCZOS)  # resize with anti-aliasing
-    image = image.convert('RGB')  # convert image to RGB format
-    image = np.asarray(image)  # convert image into array
-    image = (image.astype(np.float32) / 255.0)  # normalize pixel values
-    img_reshape = image[np.newaxis, ...]  # add batch dimension
-    prediction = model.predict(img_reshape)  # make prediction
-    return prediction  # return predicted output
+app = Flask(__name__)
 
-# Load the trained model
-model = tf.keras.models.load_model('C:/MLAI_Lab/my_model.hdf5')
+# Load your trained model
+model = tf.keras.models.load_model("my_model.hdf5")
 
-# Load pre-trained InceptionV3 just for structure if needed (not required for prediction)
-pre_trained_model = InceptionV3(
-    input_shape=(75, 75, 3),
-    include_top=False,
-    weights='imagenet'
-)
+# Use webcam only if running locally
+USE_CAMERA = os.environ.get("USE_CAMERA", "1") == "1"
+camera = None
+if USE_CAMERA:
+    camera = cv2.VideoCapture(0)
 
-# Streamlit UI
-st.write("""
-# Strawberry and Pancake Prediction
-""")
+def preprocess_frame(frame):
+    img = cv2.resize(frame, (75, 75))  # Resize to match training input
+    img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))  # BGR to RGB
+    img = np.asarray(img).astype(np.float32) / 255.0
+    return np.expand_dims(img, axis=0)
 
-st.write("This is a simple image classification web app to predict rock-paper-scissor hand sign.")
+def get_prediction_label(pred):
+    class_idx = np.argmax(pred)
+    labels = ['Unknown', 'Pancake', 'Strawberry']
+    return labels[class_idx]
 
-# Upload image
-file = st.file_uploader("Please upload an image file", type=["jpg", "png"])
+def gen_frames():
+    if not camera:
+        raise RuntimeError("Camera is not available on this platform.")
+    
+    while True:
+        success, frame = camera.read()
+        if not success:
+            break
 
-if file is None:
-    st.text("You haven't uploaded an image file.")
-else:
-    image = Image.open(file)
-    st.image(image, use_column_width=True)
+        # Preprocess and predict
+        input_frame = preprocess_frame(frame)
+        prediction = model.predict(input_frame)
+        label = get_prediction_label(prediction)
 
-    prediction = import_and_predict(image, model)
+        # Draw label on frame
+        cv2.putText(frame, f'Detected: {label}', (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    # Show result
-    if np.argmax(prediction) == 0:
-        st.write("🧻 It is a **Unknown**!")
-    elif np.argmax(prediction) == 1:
-        st.write("🪨 It is a **Pancake**!")
-    else:
-        st.write("✂️ It is a **Strawberry**!")
+        # Encode and yield frame
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
 
-    st.text("Prediction Probabilities (0: None, 1: Pancake, 2: Strawberry):")
-    st.write(prediction)
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/video_feed')
+def video_feed():
+    if not USE_CAMERA:
+        return "Video feed not supported on this platform."
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))  # Render sets PORT environment variable
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

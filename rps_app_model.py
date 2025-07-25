@@ -119,5 +119,5 @@ plt.legend(loc='upper right')
 plt.tight_layout()
 plt.show()
 # Save the trained model to file
-tf.keras.models.save_model(model_TL, 'my_model.hdf5')
-
+save_path = os.path.join(os.path.dirname(__file__), 'my_model.hdf5')
+tf.keras.models.save_model(model_TL, save_path)
