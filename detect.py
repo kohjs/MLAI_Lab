@@ -20,7 +20,7 @@ def import_and_predict(image_data, model):
     return prediction
 
 # Load model
-model = tf.keras.models.load_model('C:/MLAI/MLAI_Lab/improved_inception_model.keras')
+model = tf.keras.models.load_model('C:/MLAI_Lab/backend/model/improved_inception_model.keras')
 
 # Start webcam
 cap = cv2.VideoCapture(0)

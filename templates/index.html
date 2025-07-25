@@ -14,23 +14,17 @@
 <script>
 (async () => {
   const video = document.getElementById('cam');
-  const canvas = document.getElementById('c');
   const out = document.getElementById('out');
-  const snap = document.getElementById('snap');
-
+  
+  // First get user camera stream
   const stream = await navigator.mediaDevices.getUserMedia({ video: true });
   video.srcObject = stream;
-
-  snap.onclick = async () => {
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, 75, 75);
-    const dataUrl = canvas.toDataURL('image/jpeg');
-    const res = await fetch('/predict', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: dataUrl })
-    });
-    out.textContent = await res.text();
+  
+  // Then connect to backend video feed with detections
+  const detectionVideo = document.createElement('video');
+  detectionVideo.src = '/video_feed';
+  detectionVideo.onloadedmetadata = () => {
+    out.textContent = 'Connected to detection service';
   };
 })();
 </script>

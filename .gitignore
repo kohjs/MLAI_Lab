@@ -1,3 +1,50 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/dist-ssr
+*.local
+
+# Backend
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Model files
+*.h5
+*.pb
+*.tflite
+*.pth
+*.pt
+
+# Local configs
+.env
+.env.local
+.env.*.local
 .conda/
-improved_inception_model.keras
-best_model.h5
