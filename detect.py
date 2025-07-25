@@ -10,17 +10,17 @@ frame = None
 
 # Function to process and predict from image
 def import_and_predict(image_data, model):
-    size = (75, 75)  # set the image size
+    size = (150, 150)  # set the image size to match the model input
     image = ImageOps.fit(image_data, size, method=Image.Resampling.LANCZOS)  # resize with anti-aliasing
     image = image.convert('RGB')  # convert image to RGB
     image = np.asarray(image)  # convert image into array
-    image = (image.astype(np.float32) / 255.0)  # normalize
+    image = (image.astype(np.float32) / 255.0)  # normalize the image
     img_reshape = image[np.newaxis, ...]  # add batch dimension
     prediction = model.predict(img_reshape)  # make prediction
     return prediction
 
 # Load model
-model = tf.keras.models.load_model('C:/MLAI/MLAI_Lab/my_model.hdf5')
+model = tf.keras.models.load_model('C:/MLAI/MLAI_Lab/improved_inception_model.keras')
 
 # Start webcam
 cap = cv2.VideoCapture(0)
@@ -34,8 +34,9 @@ while True:
     if not ret:
         continue
 
-    frame = cv2.resize(original, (224, 224))  # Resize for display only
-    cv2.imwrite(filename='img.png', img=original)
+    # Resize frame for both display and prediction
+    resized_frame = cv2.resize(original, (150, 150))  # Resize to the required 150x150
+    cv2.imwrite(filename='img.png', img=resized_frame)  # Save resized image for prediction
 
     image = Image.open('img.png')
     prediction = import_and_predict(image, model)
@@ -57,6 +58,6 @@ while True:
         break
 
 cap.release()
-frame = None
 cv2.destroyAllWindows()
 sys.exit()
+
