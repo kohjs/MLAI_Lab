@@ -62,8 +62,8 @@ def model_output_for_TL(pre_trained_model, last_output):
     return model
 
 # Set up directory paths
-train_dir = os.path.join('C:/MLAI_Lab/train/')
-test_dir = os.path.join('C:/MLAI_Lab/test/')
+train_dir = os.path.join('C:/MLAI/MLAI_Lab/train/')
+test_dir = os.path.join('C:/MLAI/MLAI_Lab/test/')
 
 # Generate image data with augmentation
 train_generator, validation_generator, test_generator = image_gen_w_aug(train_dir, test_dir)
@@ -92,7 +92,7 @@ model_TL.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['ac
 history_TL = model_TL.fit(
     train_generator,
     steps_per_epoch=10,
-    epochs=10,
+    epochs=15,
     verbose=1,
     validation_data=validation_generator
 )
