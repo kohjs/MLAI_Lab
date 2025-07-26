@@ -7,9 +7,80 @@ from tensorflow.keras.optimizers import Adam
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import os
+import shutil
+import random
+import numpy as np
 
-def improved_image_gen_w_aug(train_parent_directory, test_parent_directory):
-    """Enhanced data augmentation with more techniques"""
+def create_random_split_directories(source_dir, test_split=0.2, random_seed=None):
+    """
+    Creates temporary train/test directories with random split
+    """
+    if random_seed is None:
+        random_seed = random.randint(1, 10000)  # Different seed each time
+    
+    random.seed(random_seed)
+    np.random.seed(random_seed)
+    
+    # Create temporary directories
+    temp_train_dir = 'temp_train'
+    temp_test_dir = 'temp_test'
+    
+    # Clean up existing temp directories
+    if os.path.exists(temp_train_dir):
+        shutil.rmtree(temp_train_dir)
+    if os.path.exists(temp_test_dir):
+        shutil.rmtree(temp_test_dir)
+    
+    os.makedirs(temp_train_dir)
+    os.makedirs(temp_test_dir)
+    
+    print(f"Creating random split with {test_split*100}% test data...")
+    
+    # Process each class directory
+    for class_name in os.listdir(source_dir):
+        class_path = os.path.join(source_dir, class_name)
+        if not os.path.isdir(class_path):
+            continue
+            
+        # Create class directories in temp folders
+        os.makedirs(os.path.join(temp_train_dir, class_name))
+        os.makedirs(os.path.join(temp_test_dir, class_name))
+        
+        # Get all image files
+        image_files = [f for f in os.listdir(class_path) 
+                      if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
+        
+        # Random split
+        random.shuffle(image_files)
+        split_idx = int(len(image_files) * (1 - test_split))
+        train_files = image_files[:split_idx]
+        test_files = image_files[split_idx:]
+        
+        print(f"Class '{class_name}': {len(train_files)} train, {len(test_files)} test images")
+        
+        # Copy files to temporary directories
+        for file in train_files:
+            src = os.path.join(class_path, file)
+            dst = os.path.join(temp_train_dir, class_name, file)
+            shutil.copy2(src, dst)
+            
+        for file in test_files:
+            src = os.path.join(class_path, file)
+            dst = os.path.join(temp_test_dir, class_name, file)
+            shutil.copy2(src, dst)
+    
+    print(f"Random split created with seed: {random_seed}")
+    return temp_train_dir, temp_test_dir, random_seed
+
+def improved_image_gen_w_random_split(source_directory, test_split=0.2, random_seed=None):
+    """
+    Enhanced data augmentation with random train/test split
+    """
+    # Create random split directories
+    temp_train_dir, temp_test_dir, used_seed = create_random_split_directories(
+        source_directory, test_split, random_seed
+    )
+    
     train_datagen = ImageDataGenerator(
         rescale=1/255,
         rotation_range=40,           # Increased rotation
@@ -27,7 +98,7 @@ def improved_image_gen_w_aug(train_parent_directory, test_parent_directory):
 
     # Improved batch sizes for better gradient estimates
     train_generator = train_datagen.flow_from_directory(
-        train_parent_directory,
+        temp_train_dir,
         target_size=(150, 150),      # Increased input size for better features
         batch_size=32,               # Standard batch size
         class_mode='categorical',
@@ -36,7 +107,7 @@ def improved_image_gen_w_aug(train_parent_directory, test_parent_directory):
     )
 
     val_generator = train_datagen.flow_from_directory(
-        train_parent_directory,
+        temp_train_dir,
         target_size=(150, 150),
         batch_size=32,
         class_mode='categorical',
@@ -45,14 +116,14 @@ def improved_image_gen_w_aug(train_parent_directory, test_parent_directory):
     )
 
     test_generator = test_datagen.flow_from_directory(
-        test_parent_directory,
+        temp_test_dir,
         target_size=(150, 150),
         batch_size=32,
         class_mode='categorical',
         shuffle=False
     )
 
-    return train_generator, val_generator, test_generator
+    return train_generator, val_generator, test_generator, used_seed
 
 def improved_model_output_for_TL(pre_trained_model, last_output, num_classes=3):
     """Improved model head with better architecture"""
@@ -119,88 +190,128 @@ def fine_tune_model(model, train_generator, validation_generator, unfreeze_layer
     
     return model
 
-# Main training script
-def train_improved_model():
-    # Set up directory paths
-    train_dir = os.path.join('C:/MLAI_Lab/train/')
-    test_dir = os.path.join('C:/MLAI_Lab/test/')
+def cleanup_temp_directories():
+    """Clean up temporary directories after training"""
+    temp_dirs = ['temp_train', 'temp_test']
+    for temp_dir in temp_dirs:
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+            print(f"Cleaned up {temp_dir}")
 
-    # Generate improved image data
-    train_generator, validation_generator, test_generator = improved_image_gen_w_aug(train_dir, test_dir)
-
-    # Load pre-trained InceptionV3 with improved input size
-    pre_trained_model = InceptionV3(
-        input_shape=(150, 150, 3),   # Larger input size
-        include_top=False,
-        weights='imagenet'
-    )
-
-    # Freeze all layers initially
-    for layer in pre_trained_model.layers:
-        layer.trainable = False
-
-    # Use a later layer for better feature extraction
-    last_layer = pre_trained_model.get_layer('mixed7')  # Deeper layer
-    last_output = last_layer.output
-
-    # Create improved model
-    model_TL = improved_model_output_for_TL(pre_trained_model, last_output)
-
-    # Compile with better optimizer settings
-    model_TL.compile(
-        optimizer=Adam(learning_rate=0.001),
-        loss='categorical_crossentropy',
-        metrics=['accuracy']
-    )
-
-    # Create callbacks
-    callbacks = create_callbacks()
-
-    # Calculate steps per epoch properly
-    steps_per_epoch = train_generator.samples // train_generator.batch_size
-    validation_steps = validation_generator.samples // validation_generator.batch_size
-
-    print(f"Steps per epoch: {steps_per_epoch}")
-    print(f"Validation steps: {validation_steps}")
-
-    # Phase 1: Train with frozen base
-    print("Phase 1: Training with frozen base model...")
-    history1 = model_TL.fit(
-        train_generator,
-        steps_per_epoch=steps_per_epoch,
-        epochs=20,
-        validation_data=validation_generator,
-        validation_steps=validation_steps,
-        callbacks=callbacks,
-        verbose=1
-    )
-
-    # Phase 2: Fine-tune with unfrozen layers
-    print("Phase 2: Fine-tuning with unfrozen layers...")
-    model_TL = fine_tune_model(model_TL, train_generator, validation_generator)
+# Main training script with random splitting
+def train_improved_model_with_random_split():
+    # IMPORTANT: Change this to your complete dataset directory
+    # This should contain subdirectories for each class with all your images
+    source_dir = 'C:/MLAI_Lab/all_data/'  # UPDATE THIS PATH!
     
-    # Reset callbacks for fine-tuning
-    callbacks = create_callbacks()
+    # Check if source directory exists
+    if not os.path.exists(source_dir):
+        print(f"ERROR: Source directory '{source_dir}' does not exist!")
+        print("Please update the source_dir path to point to your complete dataset.")
+        print("Your directory structure should look like:")
+        print("C:/MLAI_Lab/all_data/")
+        print("├── pancake/")
+        print("│   ├── pancake1.jpg")
+        print("│   ├── pancake2.jpg")
+        print("│   └── ...")
+        print("├── strawberry/")
+        print("│   ├── strawberry1.jpg")
+        print("│   ├── strawberry2.jpg")
+        print("│   └── ...")
+        print("└── none/")
+        print("    ├── other1.jpg")
+        print("    ├── other2.jpg")
+        print("    └── ... (images that are neither pancake nor strawberry)")
+        return None, None, None, None
     
-    history2 = model_TL.fit(
-        train_generator,
-        steps_per_epoch=steps_per_epoch,
-        epochs=15,
-        validation_data=validation_generator,
-        validation_steps=validation_steps,
-        callbacks=callbacks,
-        verbose=1
-    )
+    try:
+        # Generate improved image data with random split
+        train_generator, validation_generator, test_generator, used_seed = improved_image_gen_w_random_split(
+            source_dir, 
+            test_split=0.2,     # 20% for testing, 80% for training
+            random_seed=None    # None = different split each time, or set a number for reproducible splits
+        )
 
-    # Combine histories
-    history = {
-        'accuracy': history1.history['accuracy'] + history2.history['accuracy'],
-        'val_accuracy': history1.history['val_accuracy'] + history2.history['val_accuracy'],
-        'loss': history1.history['loss'] + history2.history['loss'],
-        'val_loss': history1.history['val_loss'] + history2.history['val_loss']
-    }
+        # Load pre-trained InceptionV3 with improved input size
+        pre_trained_model = InceptionV3(
+            input_shape=(150, 150, 3),   # Larger input size
+            include_top=False,
+            weights='imagenet'
+        )
 
-    return model_TL, history, test_generator
+        # Freeze all layers initially
+        for layer in pre_trained_model.layers:
+            layer.trainable = False
+
+        # Use a later layer for better feature extraction
+        last_layer = pre_trained_model.get_layer('mixed7')  # Deeper layer
+        last_output = last_layer.output
+
+        # Create improved model
+        model_TL = improved_model_output_for_TL(pre_trained_model, last_output)
+
+        # Compile with better optimizer settings
+        model_TL.compile(
+            optimizer=Adam(learning_rate=0.001),
+            loss='categorical_crossentropy',
+            metrics=['accuracy']
+        )
+
+        # Create callbacks
+        callbacks = create_callbacks()
+
+        # Calculate steps per epoch properly
+        steps_per_epoch = train_generator.samples // train_generator.batch_size
+        validation_steps = validation_generator.samples // validation_generator.batch_size
+
+        print(f"Steps per epoch: {steps_per_epoch}")
+        print(f"Validation steps: {validation_steps}")
+        print(f"Training with random seed: {used_seed}")
+
+        # Phase 1: Train with frozen base
+        print("Phase 1: Training with frozen base model...")
+        history1 = model_TL.fit(
+            train_generator,
+            steps_per_epoch=steps_per_epoch,
+            epochs=20,
+            validation_data=validation_generator,
+            validation_steps=validation_steps,
+            callbacks=callbacks,
+            verbose=1
+        )
+
+        # Phase 2: Fine-tune with unfrozen layers
+        print("Phase 2: Fine-tuning with unfrozen layers...")
+        model_TL = fine_tune_model(model_TL, train_generator, validation_generator)
+        
+        # Reset callbacks for fine-tuning
+        callbacks = create_callbacks()
+        
+        history2 = model_TL.fit(
+            train_generator,
+            steps_per_epoch=steps_per_epoch,
+            epochs=15,
+            validation_data=validation_generator,
+            validation_steps=validation_steps,
+            callbacks=callbacks,
+            verbose=1
+        )
+
+        # Combine histories
+        history = {
+            'accuracy': history1.history['accuracy'] + history2.history['accuracy'],
+            'val_accuracy': history1.history['val_accuracy'] + history2.history['val_accuracy'],
+            'loss': history1.history['loss'] + history2.history['loss'],
+            'val_loss': history1.history['val_loss'] + history2.history['val_loss']
+        }
+
+        return model_TL, history, test_generator, used_seed
+    
+    except Exception as e:
+        print(f"Error during training: {e}")
+        # Clean up in case of error
+        cleanup_temp_directories()
+        raise e
 
 def plot_training_history(history):
     """Enhanced plotting function"""
@@ -252,12 +363,33 @@ def evaluate_model(model, test_generator):
     
     return test_accuracy, test_loss
 
-# Run the improved training
+# Run the improved training with random splitting
 if __name__ == "__main__":
-    model, history, test_gen = train_improved_model()
-    plot_training_history(history)
-    evaluate_model(model, test_gen)
+    print("Starting training with random train/test split...")
     
-    # Save the final model
-    model.save('improved_inception_model.keras')
-    print("Model saved as 'improved_inception_model.keras'")
+    try:
+        # Train the model
+        model, history, test_gen, seed = train_improved_model_with_random_split()
+        
+        if model is not None:
+            # Plot training history
+            plot_training_history(history)
+            
+            # Evaluate on test set
+            evaluate_model(model, test_gen)
+            
+            # Save the final model
+            model_filename = f'improved_inception_model_seed_{seed}.keras'
+            model.save(model_filename)
+            print(f"Model saved as '{model_filename}'")
+            
+            print(f"Training completed successfully with random seed: {seed}")
+            print("Note: Each training run will use a different random split of your data.")
+        
+    except Exception as e:
+        print(f"Training failed: {e}")
+    
+    finally:
+        # Always clean up temporary directories
+        cleanup_temp_directories()
+        print("Training session ended.")
