@@ -11,9 +11,9 @@ import shutil
 import random
 import numpy as np
 
-def create_random_split_directories(source_dir, test_split=0.2, random_seed=None):
+def create_random_split_directories(source_dirs, test_split=0.2, random_seed=None):
     """
-    Creates temporary train/test directories with random split
+    Creates temporary train/test directories with random split from multiple source directories
     """
     if random_seed is None:
         random_seed = random.randint(1, 10000)  # Different seed each time
@@ -36,49 +36,63 @@ def create_random_split_directories(source_dir, test_split=0.2, random_seed=None
     
     print(f"Creating random split with {test_split*100}% test data...")
     
-    # Process each class directory
-    for class_name in os.listdir(source_dir):
-        class_path = os.path.join(source_dir, class_name)
-        if not os.path.isdir(class_path):
-            continue
-            
-        # Create class directories in temp folders
-        os.makedirs(os.path.join(temp_train_dir, class_name))
-        os.makedirs(os.path.join(temp_test_dir, class_name))
+    # Process each source directory
+    if isinstance(source_dirs, str):
+        source_dirs = [source_dirs]
         
-        # Get all image files
-        image_files = [f for f in os.listdir(class_path) 
-                      if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
+    # First pass: collect all class names
+    all_classes = set()
+    for source_dir in source_dirs:
+        all_classes.update(os.listdir(source_dir))
+    
+    # Create class directories in temp folders
+    for class_name in all_classes:
+        os.makedirs(os.path.join(temp_train_dir, class_name), exist_ok=True)
+        os.makedirs(os.path.join(temp_test_dir, class_name), exist_ok=True)
+    
+    # Process each class directory from all sources
+    for class_name in all_classes:
+        all_image_files = []
+        
+        for source_dir in source_dirs:
+            class_path = os.path.join(source_dir, class_name)
+            if not os.path.isdir(class_path):
+                continue
+                
+            # Get all image files from this source
+            image_files = [f for f in os.listdir(class_path)
+                          if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))]
+            all_image_files.extend([(source_dir, f) for f in image_files])
         
         # Random split
-        random.shuffle(image_files)
-        split_idx = int(len(image_files) * (1 - test_split))
-        train_files = image_files[:split_idx]
-        test_files = image_files[split_idx:]
+        random.shuffle(all_image_files)
+        split_idx = int(len(all_image_files) * (1 - test_split))
+        train_files = all_image_files[:split_idx]
+        test_files = all_image_files[split_idx:]
         
         print(f"Class '{class_name}': {len(train_files)} train, {len(test_files)} test images")
         
         # Copy files to temporary directories
-        for file in train_files:
-            src = os.path.join(class_path, file)
+        for source_dir, file in train_files:
+            src = os.path.join(source_dir, class_name, file)
             dst = os.path.join(temp_train_dir, class_name, file)
             shutil.copy2(src, dst)
             
-        for file in test_files:
-            src = os.path.join(class_path, file)
+        for source_dir, file in test_files:
+            src = os.path.join(source_dir, class_name, file)
             dst = os.path.join(temp_test_dir, class_name, file)
             shutil.copy2(src, dst)
     
     print(f"Random split created with seed: {random_seed}")
     return temp_train_dir, temp_test_dir, random_seed
 
-def improved_image_gen_w_random_split(source_directory, test_split=0.2, random_seed=None):
+def improved_image_gen_w_random_split(source_directories, test_split=0.2, random_seed=None):
     """
-    Enhanced data augmentation with random train/test split
+    Enhanced data augmentation with random train/test split from multiple sources
     """
     # Create random split directories
     temp_train_dir, temp_test_dir, used_seed = create_random_split_directories(
-        source_directory, test_split, random_seed
+        source_directories, test_split, random_seed
     )
     
     train_datagen = ImageDataGenerator(
@@ -200,34 +214,39 @@ def cleanup_temp_directories():
 
 # Main training script with random splitting
 def train_improved_model_with_random_split():
-    # IMPORTANT: Change this to your complete dataset directory
-    # This should contain subdirectories for each class with all your images
-    source_dir = 'C:/MLAI_Lab/all_data/'  # UPDATE THIS PATH!
+    # IMPORTANT: Change these to your dataset directories
+    # These should contain subdirectories for each class with all your images
+    source_dirs = [
+        'C:/MLAI_Lab/all_data/',
+        'C:/MLAI_Lab/augmented_data/'
+    ]
     
-    # Check if source directory exists
-    if not os.path.exists(source_dir):
-        print(f"ERROR: Source directory '{source_dir}' does not exist!")
-        print("Please update the source_dir path to point to your complete dataset.")
-        print("Your directory structure should look like:")
-        print("C:/MLAI_Lab/all_data/")
-        print("├── pancake/")
-        print("│   ├── pancake1.jpg")
-        print("│   ├── pancake2.jpg")
-        print("│   └── ...")
-        print("├── strawberry/")
-        print("│   ├── strawberry1.jpg")
-        print("│   ├── strawberry2.jpg")
-        print("│   └── ...")
-        print("└── none/")
-        print("    ├── other1.jpg")
-        print("    ├── other2.jpg")
-        print("    └── ... (images that are neither pancake nor strawberry)")
-        return None, None, None, None
+    # Check if source directories exist
+    for source_dir in source_dirs:
+        if not os.path.exists(source_dir):
+            print(f"ERROR: Source directory '{source_dir}' does not exist!")
+            print("Please update the source_dirs paths to point to your datasets.")
+            print("Your directory structure should look like:")
+            print("C:/MLAI_Lab/all_data/")
+            print("├── pancake/")
+            print("│   ├── pancake1.jpg")
+            print("│   ├── pancake2.jpg")
+            print("│   └── ...")
+            print("├── strawberry/")
+            print("│   ├── strawberry1.jpg")
+            print("│   ├── strawberry2.jpg")
+            print("│   └── ...")
+            print("└── none/")
+            print("    ├── other1.jpg")
+            print("    ├── other2.jpg")
+            print("    └── ... (images that are neither pancake nor strawberry)")
+            print("\nAnd similarly for augmented_data/ directory")
+            return None, None, None, None
     
     try:
         # Generate improved image data with random split
         train_generator, validation_generator, test_generator, used_seed = improved_image_gen_w_random_split(
-            source_dir, 
+            source_dirs,
             test_split=0.2,     # 20% for testing, 80% for training
             random_seed=None    # None = different split each time, or set a number for reproducible splits
         )
@@ -392,4 +411,7 @@ if __name__ == "__main__":
     finally:
         # Always clean up temporary directories
         cleanup_temp_directories()
+        if model is not None:
+            print("\nFinal Model Architecture:")
+            model.summary()
         print("Training session ended.")
