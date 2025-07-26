@@ -88,7 +88,7 @@ def create_callbacks():
             verbose=1
         ),
         ModelCheckpoint(
-            'best_model.h5',
+            'best_model.keras',
             monitor='val_accuracy',
             save_best_only=True,
             verbose=1
@@ -122,8 +122,8 @@ def fine_tune_model(model, train_generator, validation_generator, unfreeze_layer
 # Main training script
 def train_improved_model():
     # Set up directory paths
-    train_dir = os.path.join('C:/MLAI/MLAI_Lab/train/')
-    test_dir = os.path.join('C:/MLAI/MLAI_Lab/test/')
+    train_dir = os.path.join('C:/MLAI_Lab/train/')
+    test_dir = os.path.join('C:/MLAI_Lab/test/')
 
     # Generate improved image data
     train_generator, validation_generator, test_generator = improved_image_gen_w_aug(train_dir, test_dir)
