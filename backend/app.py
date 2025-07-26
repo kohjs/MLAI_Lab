@@ -1,4 +1,5 @@
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, request, jsonify
+from flask_cors import cross_origin
 import cv2
 import numpy as np
 import tensorflow as tf
@@ -9,9 +10,10 @@ app = Flask(__name__)
 
 
 CORS(app)
-# Enhanced model loading with multiple fallbacks
+# Enhanced model loading using TensorFlow's Keras
 model_paths = [
     'C:/MLAI_Lab/backend/model/improved_inception_model.keras',
+    'C:/MLAI_Lab/backend/model/best_model.h5'
 ]
 
 model = None
@@ -20,8 +22,7 @@ for path in model_paths:
         print(f"Attempting to load model from: {path}")
         model = tf.keras.models.load_model(
             path,
-            compile=False,
-            custom_objects=None
+            compile=False
         )
         print(f"Successfully loaded model from {path}")
         break
@@ -30,11 +31,17 @@ for path in model_paths:
         continue
 
 if model is None:
-    print("All model loading attempts failed. Please verify:")
-    print("1. Model files exist in backend/model/")
-    print("2. TensorFlow version is compatible")
-    print("3. Model files are not corrupted")
-    raise SystemExit(1)
+    print("All model loading attempts failed. Trying direct TensorFlow loading...")
+    try:
+        model = tf.saved_model.load('C:/MLAI_Lab/backend/model')
+        print("Loaded model using tf.saved_model")
+    except Exception as e:
+        print(f"Final loading attempt failed: {str(e)}")
+        print("Please verify:")
+        print("1. Model files exist in backend/model/")
+        print("2. TensorFlow version is compatible")
+        print("3. Model files are not corrupted")
+        raise SystemExit(1)
 
 # Load labels
 labels = ['Unknown', 'Pancake', 'Strawberry']
@@ -89,6 +96,8 @@ def gen_frames():
 latest_prediction = {"label": "Unknown", "confidence": 0}
 
 @app.route("/predict_image", methods=["POST"])
+@cross_origin()
+
 def predict_image():
     if 'image' not in request.files:
         return {"error": "No image provided"}, 400
@@ -98,23 +107,30 @@ def predict_image():
         return {"error": "No selected file"}, 400
     
     try:
-        # Process image similar to test.py
+        # Process image
         img = Image.open(file.stream)
-        img = img.resize((75, 75))
+        img = img.resize((150, 150))
         img = np.asarray(img).astype(np.float32) / 255.0
         img = np.expand_dims(img, axis=0)
         
         # Make prediction
         prediction = model.predict(img)
+        class_idx = np.argmax(prediction)
+        confidence = float(np.max(prediction))
         
-        # Format response for frontend
+        # Format response matching frontend expectations
         predictions = [
-            {"label": "Unknown", "probability": float(prediction[0][0])},
-            {"label": "Pancake", "probability": float(prediction[0][1])},
-            {"label": "Strawberry", "probability": float(prediction[0][2])}
+            {"label": labels[0], "probability": float(prediction[0][0])},
+            {"label": labels[1], "probability": float(prediction[0][1])},
+            {"label": labels[2], "probability": float(prediction[0][2])}
         ]
         
-        return {"predictions": predictions}
+        response = {
+            "predictions": predictions,
+            "detected_class": labels[class_idx],
+            "confidence": confidence
+        }
+        return response
     except Exception as e:
         return {"error": str(e)}, 500
 
@@ -131,7 +147,7 @@ def video_feed():
     return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5001))
+    port = 5001  # Explicitly set to 5001 instead of using environment variable
     print(f"Starting server on port {port}")
     try:
         app.run(host="0.0.0.0", port=port, debug=True)
