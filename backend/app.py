@@ -9,32 +9,10 @@ app = Flask(__name__)
 
 
 CORS(app)
-# Enhanced model loading with multiple fallbacks
-model_paths = [
-    'C:/MLAI_Lab/backend/model/improved_inception_model.keras',
-]
-
-model = None
-for path in model_paths:
-    try:
-        print(f"Attempting to load model from: {path}")
-        model = tf.keras.models.load_model(
-            path,
-            compile=False,
-            custom_objects=None
-        )
-        print(f"Successfully loaded model from {path}")
-        break
-    except Exception as e:
-        print(f"Failed to load {path}: {str(e)}")
-        continue
-
-if model is None:
-    print("All model loading attempts failed. Please verify:")
-    print("1. Model files exist in backend/model/")
-    print("2. TensorFlow version is compatible")
-    print("3. Model files are not corrupted")
-    raise SystemExit(1)
+# Load model
+import os
+model_path = os.path.join(os.path.dirname(__file__), "model", "improved_inception_model.keras")
+model = tf.keras.models.load_model(model_path)
 
 # Load labels
 labels = ['Unknown', 'Pancake', 'Strawberry']
@@ -87,36 +65,6 @@ def gen_frames():
 
 # Store the latest prediction
 latest_prediction = {"label": "Unknown", "confidence": 0}
-
-@app.route("/predict_image", methods=["POST"])
-def predict_image():
-    if 'image' not in request.files:
-        return {"error": "No image provided"}, 400
-    
-    file = request.files['image']
-    if file.filename == '':
-        return {"error": "No selected file"}, 400
-    
-    try:
-        # Process image similar to test.py
-        img = Image.open(file.stream)
-        img = img.resize((75, 75))
-        img = np.asarray(img).astype(np.float32) / 255.0
-        img = np.expand_dims(img, axis=0)
-        
-        # Make prediction
-        prediction = model.predict(img)
-        
-        # Format response for frontend
-        predictions = [
-            {"label": "Unknown", "probability": float(prediction[0][0])},
-            {"label": "Pancake", "probability": float(prediction[0][1])},
-            {"label": "Strawberry", "probability": float(prediction[0][2])}
-        ]
-        
-        return {"predictions": predictions}
-    except Exception as e:
-        return {"error": str(e)}, 500
 
 @app.route("/")
 def index():
