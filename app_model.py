@@ -97,10 +97,10 @@ def improved_image_gen_w_random_split(source_directories, test_split=0.2, random
     
     train_datagen = ImageDataGenerator(
         rescale=1/255,
-        horizontal_flip=True,         # Still useful
-        shear_range=0.1,              # Slightly reduce
-        channel_shift_range=0.05,     # Reduce intensity
-        validation_split=0.15        # Larger validation split for small datasets
+        horizontal_flip=True,  
+        shear_range=0.1,          
+        channel_shift_range=0.05,  
+        validation_split=0.15        
     )
 
     test_datagen = ImageDataGenerator(rescale=1/255)
@@ -108,8 +108,8 @@ def improved_image_gen_w_random_split(source_directories, test_split=0.2, random
     # Improved batch sizes for better gradient estimates
     train_generator = train_datagen.flow_from_directory(
         temp_train_dir,
-        target_size=(150, 150),      # Increased input size for better features
-        batch_size=32,               # Standard batch size
+        target_size=(150, 150),    
+        batch_size=32,               
         class_mode='categorical',
         subset='training',
         shuffle=True

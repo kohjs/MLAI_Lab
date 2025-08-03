@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app)
 # Enhanced model loading using TensorFlow's Keras
 model_paths = [
-    'C:/MLAI_Lab/backend/model/improved_inception_model.keras',
+    'C:\MLAI_Lab/backend\model\improved_inception_model.keras',
     'C:/MLAI_Lab/backend/model/best_model.h5'
 ]
 
@@ -22,7 +22,8 @@ for path in model_paths:
         print(f"Attempting to load model from: {path}")
         model = tf.keras.models.load_model(
             path,
-            compile=False
+            compile=False,
+            custom_objects=None
         )
         print(f"Successfully loaded model from {path}")
         break
@@ -43,7 +44,7 @@ if model is None:
         print("3. Model files are not corrupted")
         raise SystemExit(1)
 
-# Load labels
+
 labels = ['Unknown', 'Pancake', 'Strawberry']
 
 # Set up camera
@@ -156,3 +157,4 @@ if __name__ == "__main__":
     finally:
         camera.release()
         print("Camera resources released")
+

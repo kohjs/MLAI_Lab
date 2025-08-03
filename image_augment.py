@@ -60,7 +60,7 @@ transform = A.Compose([
 
 # Config
 num_augmented = 10
-max_images_per_class = 200
+max_images_per_class = 500
 
 # Process each class
 for class_name in os.listdir(input_root):
